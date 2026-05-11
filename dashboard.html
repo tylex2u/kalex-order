@@ -523,8 +523,12 @@ function renderOrdersTable(data) {
   document.getElementById('ordersTableWrap').innerHTML = html;
 }
 
-// Make sheet public first, then load
-loadData();
+// Clear date inputs on load to prevent browser auto-fill
+window.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('fromDate').value = '';
+  document.getElementById('toDate').value = '';
+  loadData();
+});
 </script>
 </body>
 </html>
