@@ -303,6 +303,26 @@ async function loadData() {
     const cols = json.table.cols;
     allOrders = rows.map(row => {
       const get = i => (row.c[i] && row.c[i].v !== null) ? row.c[i].v : '';
+      const getF = i => (row.c[i] && row.c[i].f !== null) ? row.c[i].f : '';
+
+      // Parse date - gviz returns "Date(2026,4,10)" where month is 0-based
+      function parseOrderDate(i) {
+        const v = get(i);
+        const f = getF(i);
+        if (typeof v === 'string' && v.includes('Date(')) {
+          const m = v.match(/Date\((\d+),(\d+),(\d+)\)/);
+          if (m) {
+            const y = m[1], mo = String(parseInt(m[2])+1).padStart(2,'0'), d = String(m[3]).padStart(2,'0');
+            return `${y}-${mo}-${d}`;
+          }
+        }
+        // Already a string like "2026-05-10" or formatted
+        if (typeof v === 'string' && v.match(/\d{4}-\d{2}-\d{2}/)) return v;
+        // Use formatted value if available
+        if (f && f.match(/\d/)) return f;
+        return String(v || '');
+      }
+
       const products = [];
       for (let i = 7; i < cols.length - 1; i += 2) {
         const name = get(i);
@@ -310,7 +330,7 @@ async function loadData() {
         if (name && qty > 0) products.push({ name, qty });
       }
       return {
-        orderDate: get(1),
+        orderDate: parseOrderDate(1),
         platform: get(2),
         orderNo: get(3),
         actualAmount: parseFloat(get(4)) || 0,
@@ -386,8 +406,20 @@ function getFiltered() {
   return allOrders.filter(o => {
     if (platform !== 'all' && o.platform !== platform) return false;
     if (from || to) {
-      const d = new Date(o.orderDate + 'T00:00:00');
-      if (isNaN(d)) return false;
+      // Handle various date formats from Google Sheet
+      let raw = o.orderDate || '';
+      // Convert Date(2026,4,10) format or yyyy-mm-dd or dd/mm/yyyy
+      let d;
+      if (raw.includes('Date(')) {
+        const parts = raw.match(/Date\((\d+),(\d+),(\d+)\)/);
+        if (parts) d = new Date(parseInt(parts[1]), parseInt(parts[2]), parseInt(parts[3]));
+      } else if (raw.includes('/')) {
+        const p = raw.split('/');
+        d = p[0].length === 4 ? new Date(p[0], p[1]-1, p[2]) : new Date(p[2], p[1]-1, p[0]);
+      } else {
+        d = new Date(raw + 'T00:00:00');
+      }
+      if (!d || isNaN(d)) return false;
       if (from && d < from) return false;
       if (to && d > to) return false;
     }
