@@ -123,7 +123,13 @@
   .loading-dot:nth-child(3) { animation-delay: 0.4s; }
   @keyframes pulse { 0%,80%,100%{opacity:0.3;transform:scale(0.8)} 40%{opacity:1;transform:scale(1)} }
 
-  @media (max-width: 900px) {
+  .reset-filter-btn {
+    background: transparent; border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; color: var(--muted); font-family: 'DM Sans', sans-serif;
+    font-size: 12px; cursor: pointer; transition: all 0.15s;
+  }
+  .reset-filter-btn:hover { border-color: var(--danger); color: var(--danger); }
+  input[type="date"].filter-select::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
     .kpi-grid { grid-template-columns: 1fr 1fr; }
     .charts-grid { grid-template-columns: 1fr; }
     .platform-grid { grid-template-columns: 1fr; }
@@ -145,7 +151,7 @@
 
   <div class="filters">
     <span class="filter-label">Filter:</span>
-    <select class="filter-select" id="monthFilter" onchange="renderAll()">
+    <select class="filter-select" id="monthFilter" onchange="onMonthChange()">
       <option value="all">All Time</option>
     </select>
     <select class="filter-select" id="platformFilter" onchange="renderAll()">
@@ -153,6 +159,11 @@
       <option value="Shopee">Shopee</option>
       <option value="TikTok Shop">TikTok Shop</option>
     </select>
+    <span class="filter-label" style="margin-left:8px;">From:</span>
+    <input type="date" class="filter-select" id="fromDate" onchange="onDateChange()" style="padding:8px 12px;">
+    <span class="filter-label">To:</span>
+    <input type="date" class="filter-select" id="toDate" onchange="onDateChange()" style="padding:8px 12px;">
+    <button class="reset-filter-btn" onclick="resetFilters()">✕ Clear</button>
     <button class="refresh-btn" onclick="loadData()">↺ Refresh</button>
   </div>
 
@@ -312,14 +323,48 @@ function populateMonthFilter() {
   });
 }
 
-function getFiltered() {
+function onMonthChange() {
   const month = document.getElementById('monthFilter').value;
+  if (month !== 'all') {
+    const [y, m] = month.split('-');
+    const from = new Date(y, m-1, 1);
+    const to = new Date(y, m, 0);
+    document.getElementById('fromDate').value = from.toISOString().split('T')[0];
+    document.getElementById('toDate').value = to.toISOString().split('T')[0];
+  } else {
+    document.getElementById('fromDate').value = '';
+    document.getElementById('toDate').value = '';
+  }
+  renderAll();
+}
+
+function onDateChange() {
+  document.getElementById('monthFilter').value = 'all';
+  renderAll();
+}
+
+function resetFilters() {
+  document.getElementById('monthFilter').value = 'all';
+  document.getElementById('platformFilter').value = 'all';
+  document.getElementById('fromDate').value = '';
+  document.getElementById('toDate').value = '';
+  renderAll();
+}
+function getFiltered() {
   const platform = document.getElementById('platformFilter').value;
+  const fromVal = document.getElementById('fromDate').value;
+  const toVal = document.getElementById('toDate').value;
+  const from = fromVal ? new Date(fromVal) : null;
+  const to = toVal ? new Date(toVal + 'T23:59:59') : null;
+
   return allOrders.filter(o => {
-    const d = new Date(o.orderDate);
-    const mStr = isNaN(d) ? '' : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-    if (month !== 'all' && mStr !== month) return false;
     if (platform !== 'all' && o.platform !== platform) return false;
+    if (from || to) {
+      const d = new Date(o.orderDate);
+      if (isNaN(d)) return false;
+      if (from && d < from) return false;
+      if (to && d > to) return false;
+    }
     return true;
   });
 }
